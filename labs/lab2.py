@@ -1,5 +1,6 @@
 import streamlit as st
 from openai import OpenAI
+from pypdf import PdfReader
 
 # Show title and description.
 st.title("MY Document question answering")
@@ -29,12 +30,18 @@ model = "gpt-4" if use_advanced_model else "gpt-3.5-turbo"
 
 # Let the user upload a file via `st.file_uploader`.
 uploaded_file = st.file_uploader(
-    "Upload a document (.txt or .md)", type=("txt", "md")
+    "Upload a document (.txt, .md, or .pdf)", type=("txt", "md", "pdf")
 )
 
 # If a file is uploaded, generate the summary.
 if uploaded_file:
-    document = uploaded_file.read().decode()
+    if uploaded_file.type == "application/pdf":
+        reader = PdfReader(uploaded_file)
+        document = ""
+        for page in reader.pages:
+            document += page.extract_text()
+    else:
+        document = uploaded_file.read().decode()
     messages = [
         {
             "role": "user",
