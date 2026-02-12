@@ -1,4 +1,8 @@
-import streamlit as st
+try:
+    import streamlit as st
+except ImportError:
+    raise ImportError("streamlit is not installed. Install with: python3 -m pip install streamlit")
+
 from openai import OpenAI
 from pypdf import PdfReader
 
