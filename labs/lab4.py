@@ -149,8 +149,8 @@ def create_lab4_vectordb():
     return collection
 
 
-# --- Lab 4 page UI (Lab 3-style chat + vector DB RAG) ---
-st.title("Lab 4 – Document vector database")
+# --- Lab 4 page UI: Course information chatbot (RAG) ---
+st.title("Lab 4 – Course information chatbot")
 
 # Initialize the vector DB when the page loads (only runs if not already in session_state)
 vectordb = create_lab4_vectordb()
@@ -163,7 +163,7 @@ if vectordb is None:
     st.stop()
 
 count = vectordb.count()
-st.info(f"Vector DB ready: **Lab4Collection** has {count} document(s). Ask questions about the syllabi below.")
+st.caption(f"Vector DB ready with {count} syllabus documents. Ask questions below—answers will cite when they use course materials.")
 st.write("")  # spacing
 
 # --- Lab 3–style setup: token counting, model choice, phase, messages ---
@@ -282,11 +282,15 @@ if prompt := st.chat_input("Enter a message"):
                 context_parts.append(f"[Source: {src}]\n{doc}")
         context_text = "\n\n---\n\n".join(context_parts) if context_parts else "(No relevant passages found.)"
 
+        # Prompt engineering: require the bot to be clear when using RAG vs general knowledge
         system_with_context = (
             KID_FRIENDLY_SYSTEM
-            + "\n\nUse the following excerpts from the course syllabi to answer the user's question. "
-            "If the answer isn't in the excerpts, say so and answer from general knowledge. "
-            "Keep answers simple and kid-friendly.\n\nContext:\n"
+            + "\n\nYou have access to the following excerpts from course syllabi (retrieved by RAG). "
+            "When your answer is based on these excerpts, you MUST say so clearly at the start, e.g. "
+            "'Based on the course syllabi:' or 'According to the syllabus materials I have:'. "
+            "When the answer is NOT in the excerpts, you MUST say so clearly, e.g. "
+            "'This isn’t in the syllabi I have; from general knowledge:' or 'The syllabi don’t mention this; here’s what I know:'. "
+            "Keep answers simple and kid-friendly.\n\nSyllabus excerpts (use these when they answer the question):\n"
             + context_text
         )
 
