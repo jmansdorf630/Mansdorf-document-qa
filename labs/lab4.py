@@ -116,3 +116,24 @@ def create_lab4_vectordb():
         return None
     
     return collection
+
+
+# --- Lab 4 page UI ---
+st.title("Lab 4 – Document vector database")
+
+st.write(
+    "This page loads the Lab 4 ChromaDB collection from the 7 syllabus PDFs. "
+    "The collection is created once and reused for the session."
+)
+
+# Initialize the vector DB when the page loads (only runs if not already in session_state)
+vectordb = create_lab4_vectordb()
+
+if vectordb is not None:
+    count = vectordb.count()
+    st.info(f"Vector DB ready: **Lab4Collection** has {count} document(s).")
+else:
+    st.warning(
+        "Vector DB could not be loaded. Check that the Lab-04-Data.zip file is available "
+        "at the expected path and that the OpenAI API key is set in secrets."
+    )
