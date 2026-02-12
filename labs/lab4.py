@@ -5,6 +5,7 @@ from chromadb.utils import embedding_functions
 import zipfile
 from pypdf import PdfReader
 from io import BytesIO
+import os
 
 
 def create_lab4_vectordb():
@@ -50,8 +51,24 @@ def create_lab4_vectordb():
             embedding_function=openai_ef
         )
     
-    # Path to the zip file
-    zip_path = "/Users/jakemansdorf/Downloads/Lab-04-Data.zip"
+    # Path to the zip file: try project root, then data/, then legacy local path
+    possible_paths = [
+        "Lab-04-Data.zip",
+        "data/Lab-04-Data.zip",
+        os.path.join(os.path.dirname(__file__), "..", "Lab-04-Data.zip"),
+        "/Users/jakemansdorf/Downloads/Lab-04-Data.zip",
+    ]
+    zip_path = None
+    for p in possible_paths:
+        if os.path.isfile(p):
+            zip_path = p
+            break
+    if zip_path is None:
+        st.error(
+            "Lab-04-Data.zip not found. Add it to the project root (or a `data/` folder) "
+            "for Streamlit Cloud, or place it in Downloads when running locally."
+        )
+        return None
     
     # List of PDF files to process
     pdf_files = [
@@ -69,7 +86,16 @@ def create_lab4_vectordb():
     metadatas = []
     ids = []
     
-    with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+    try:
+        zip_ref = zipfile.ZipFile(zip_path, 'r')
+    except FileNotFoundError:
+        st.error(f"Zip file not found: {zip_path}")
+        return None
+    except OSError as e:
+        st.error(f"Cannot open zip file: {e}")
+        return None
+
+    with zip_ref:
         for pdf_filename in pdf_files:
             # Construct the full path within the zip
             zip_internal_path = f"Lab-04-Data/{pdf_filename}"
