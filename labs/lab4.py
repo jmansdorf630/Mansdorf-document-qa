@@ -51,12 +51,15 @@ def create_lab4_vectordb():
             embedding_function=openai_ef
         )
     
-    # Path to the zip file: try project root, then data/, then legacy local path
+    # Path to the zip file: try project root, data/, script-relative, then ~/Downloads
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    project_root = os.path.abspath(os.path.join(script_dir, ".."))
     possible_paths = [
         "Lab-04-Data.zip",
         "data/Lab-04-Data.zip",
-        os.path.join(os.path.dirname(__file__), "..", "Lab-04-Data.zip"),
-        "/Users/jakemansdorf/Downloads/Lab-04-Data.zip",
+        os.path.join(project_root, "Lab-04-Data.zip"),
+        os.path.join(project_root, "data", "Lab-04-Data.zip"),
+        os.path.expanduser("~/Downloads/Lab-04-Data.zip"),
     ]
     zip_path = None
     for p in possible_paths:
@@ -65,8 +68,9 @@ def create_lab4_vectordb():
             break
     if zip_path is None:
         st.error(
-            "Lab-04-Data.zip not found. Add it to the project root (or a `data/` folder) "
-            "for Streamlit Cloud, or place it in Downloads when running locally."
+            "**Lab-04-Data.zip** not found. "
+            "For **Streamlit Cloud**: add the zip to the repo (project root or `data/` folder). "
+            "For **local**: put it in your project root, in a `data/` folder, or in **Downloads**."
         )
         return None
     
