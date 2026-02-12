@@ -6,6 +6,7 @@ import zipfile
 from pypdf import PdfReader
 from io import BytesIO
 import os
+import tiktoken
 
 
 def create_lab4_vectordb():
@@ -148,22 +149,170 @@ def create_lab4_vectordb():
     return collection
 
 
-# --- Lab 4 page UI ---
+# --- Lab 4 page UI (Lab 3-style chat + vector DB RAG) ---
 st.title("Lab 4 – Document vector database")
-
-st.write(
-    "This page loads the Lab 4 ChromaDB collection from the 7 syllabus PDFs. "
-    "The collection is created once and reused for the session."
-)
 
 # Initialize the vector DB when the page loads (only runs if not already in session_state)
 vectordb = create_lab4_vectordb()
 
-if vectordb is not None:
-    count = vectordb.count()
-    st.info(f"Vector DB ready: **Lab4Collection** has {count} document(s).")
-else:
+if vectordb is None:
     st.warning(
         "Vector DB could not be loaded. Check that the Lab-04-Data.zip file is available "
         "at the expected path and that the OpenAI API key is set in secrets."
     )
+    st.stop()
+
+count = vectordb.count()
+st.info(f"Vector DB ready: **Lab4Collection** has {count} document(s). Ask questions about the syllabi below.")
+st.write("")  # spacing
+
+# --- Lab 3–style setup: token counting, model choice, phase, messages ---
+max_tokens = 1000
+openAI_model = st.sidebar.selectbox("Which Model?", ("mini", "regular"), key="lab4_model")
+model_to_use = "gpt-4o-mini" if openAI_model == "mini" else "gpt-4o"
+
+try:
+    encoding = tiktoken.encoding_for_model("gpt-4o")
+except Exception:
+    encoding = tiktoken.get_encoding("cl100k_base")
+
+
+def count_tokens(messages):
+    total = 3
+    for m in messages:
+        total += 4
+        total += len(encoding.encode(m["role"]))
+        total += len(encoding.encode(m.get("content", "") or ""))
+    return total
+
+
+KID_FRIENDLY_SYSTEM = (
+    "You explain things in a simple, friendly way so that a 10-year-old can understand. "
+    "Use short sentences and everyday words. When you answer a question, give a clear answer "
+    "and then ask: 'Do you want more info?' When the user wants more info, give more details "
+    "on the same topic in the same simple style, then ask again: 'Do you want more info?'"
+)
+
+if "lab4_phase" not in st.session_state:
+    st.session_state.lab4_phase = "ask_question"
+if "lab4_last_question" not in st.session_state:
+    st.session_state.lab4_last_question = ""
+
+
+def is_yes(text):
+    t = (text or "").strip().lower()
+    return t in ("yes", "y", "yeah", "yep", "sure", "more", "please")
+
+
+def is_no(text):
+    t = (text or "").strip().lower()
+    return t in ("no", "n", "nope", "nah", "no thanks")
+
+
+if "lab4_messages" not in st.session_state:
+    st.session_state.lab4_messages = [
+        {"role": "assistant", "content": "What would you like to know about the syllabi? Ask me anything!"}
+    ]
+
+# Ensure OpenAI client exists for chat
+if "client" not in st.session_state:
+    api_key = st.secrets["openai_api_key"]
+    st.session_state.client = OpenAI(api_key=api_key)
+client = st.session_state.client
+
+# Render chat history
+for msg in st.session_state.lab4_messages:
+    with st.chat_message(msg["role"]):
+        st.markdown(msg["content"])
+
+# Chat input and RAG + LLM flow
+if prompt := st.chat_input("Enter a message"):
+    st.session_state.lab4_messages.append({"role": "user", "content": prompt})
+    with st.chat_message("user"):
+        st.markdown(prompt)
+
+    phase = st.session_state.lab4_phase
+    last_question = st.session_state.lab4_last_question
+
+    # ---- User said "No" → back to help ----
+    if phase in ("answered_ask_more", "gave_more_ask_again") and is_no(prompt):
+        reply = "Sure! What else can I help you with?"
+        with st.chat_message("assistant"):
+            st.markdown(reply)
+        st.session_state.lab4_messages.append({"role": "assistant", "content": reply})
+        st.session_state.lab4_phase = "ask_question"
+        st.session_state.lab4_last_question = ""
+    # ---- User said "Yes" (want more info) ----
+    elif phase in ("answered_ask_more", "gave_more_ask_again") and is_yes(prompt):
+        messages_for_llm = [{"role": "system", "content": KID_FRIENDLY_SYSTEM}]
+        messages_for_llm.extend(st.session_state.lab4_messages[-6:])
+        messages_for_llm.append({
+            "role": "user",
+            "content": "The user said they want more information. Give more details about what we were just talking about, in the same simple way. Then end by asking: Do you want more info?",
+        })
+        if count_tokens(messages_for_llm) > max_tokens:
+            messages_for_llm = [messages_for_llm[0]] + messages_for_llm[-4:]
+        st.caption(f"Tokens sent to LLM: {count_tokens(messages_for_llm)} / {max_tokens}")
+        stream = client.chat.completions.create(
+            model=model_to_use,
+            messages=messages_for_llm,
+            stream=True,
+        )
+        with st.chat_message("assistant"):
+            response = st.write_stream(stream)
+        st.session_state.lab4_messages.append({"role": "assistant", "content": response})
+        st.session_state.lab4_phase = "gave_more_ask_again"
+    # ---- New question: RAG (retrieve from vector DB) then answer ----
+    else:
+        if phase == "ask_question" or not (is_yes(prompt) or is_no(prompt)):
+            st.session_state.lab4_last_question = prompt
+
+        # Retrieve relevant chunks from Lab4 collection
+        n_results = 3
+        results = vectordb.query(
+            query_texts=[prompt],
+            n_results=min(n_results, vectordb.count()),
+            include=["documents", "metadatas"]
+        )
+        context_parts = []
+        if results and results["documents"] and results["documents"][0]:
+            for i, doc in enumerate(results["documents"][0]):
+                meta = (results["metadatas"][0][i] if results["metadatas"] and results["metadatas"][0] else {}) or {}
+                src = meta.get("filename", "syllabus")
+                context_parts.append(f"[Source: {src}]\n{doc}")
+        context_text = "\n\n---\n\n".join(context_parts) if context_parts else "(No relevant passages found.)"
+
+        system_with_context = (
+            KID_FRIENDLY_SYSTEM
+            + "\n\nUse the following excerpts from the course syllabi to answer the user's question. "
+            "If the answer isn't in the excerpts, say so and answer from general knowledge. "
+            "Keep answers simple and kid-friendly.\n\nContext:\n"
+            + context_text
+        )
+
+        messages_for_llm = [{"role": "system", "content": system_with_context}]
+        messages_for_llm.extend(st.session_state.lab4_messages)
+        while count_tokens(messages_for_llm) > max_tokens and len(messages_for_llm) > 3:
+            if messages_for_llm[1]["role"] == "assistant":
+                messages_for_llm = [messages_for_llm[0]] + messages_for_llm[3:]
+            else:
+                messages_for_llm = [messages_for_llm[0]] + messages_for_llm[2:]
+        st.caption(f"Tokens sent to LLM: {count_tokens(messages_for_llm)} / {max_tokens}")
+        stream = client.chat.completions.create(
+            model=model_to_use,
+            messages=messages_for_llm,
+            stream=True,
+        )
+        with st.chat_message("assistant"):
+            response = st.write_stream(stream)
+        st.session_state.lab4_messages.append({"role": "assistant", "content": response})
+        st.session_state.lab4_phase = "answered_ask_more"
+
+    # Trim message history to stay under token budget
+    messages = st.session_state.lab4_messages
+    while count_tokens(messages) > max_tokens and len(messages) > 2:
+        if messages[0]["role"] == "assistant" and len(messages) > 3:
+            messages = [messages[0]] + messages[3:]
+        else:
+            messages = messages[2:]
+    st.session_state.lab4_messages = messages
