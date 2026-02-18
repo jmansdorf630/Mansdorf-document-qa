@@ -3,7 +3,7 @@ import streamlit as st
 import requests
 from openai import OpenAI
 
-st.title("Lab 5 The “What to Wear” Bot")
+st.title("Lab 5 – The “What to Wear” Bot")
 st.write(
     "Enter a city to get weather-based clothing suggestions and ideas for "
     "outdoor activities."
