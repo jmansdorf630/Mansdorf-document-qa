@@ -4,3 +4,6 @@ pypdf
 requests
 tiktoken
 chromadb
+langchain
+langchain-anthropic
+langchain-openai
