@@ -70,6 +70,22 @@ Use clear formatting (e.g. numbered list)."""
 
 chain = prompt | llm | StrOutputParser()
 
+followup_prompt = PromptTemplate.from_template(
+    """You previously recommended these movies to the user:
+
+---
+{recommendations}
+---
+
+Answer their follow-up question clearly and helpfully. Stay grounded in the movies above;
+you may add brief general film context if it helps.
+
+User question:
+{question}"""
+)
+
+followup_chain = followup_prompt | llm | StrOutputParser()
+
 st.caption(
     "Pick genre, mood, and persona in the sidebar, then run the chain. "
     "Try the same picks with different personas to compare tone."
@@ -83,3 +99,16 @@ if st.button("Get movie recommendations"):
 
 if st.session_state.last_recommendation:
     st.markdown(st.session_state.last_recommendation)
+
+    st.divider()
+    follow_up = st.text_input("Ask a follow-up question about these movies:")
+    if st.button("Submit follow-up question") and follow_up.strip():
+        with st.spinner("Thinking…"):
+            followup_answer = followup_chain.invoke(
+                {
+                    "recommendations": st.session_state.last_recommendation,
+                    "question": follow_up.strip(),
+                }
+            )
+        st.markdown("**Follow-up answer**")
+        st.markdown(followup_answer)
