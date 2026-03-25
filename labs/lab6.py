@@ -5,14 +5,14 @@ from langchain_core.output_parsers import StrOutputParser
 
 st.title("Lab 6 — Movie recommendations")
 
-if "anthropic_api_key" not in st.secrets:
-    st.error("Add `anthropic_api_key` to `.streamlit/secrets.toml` for Claude.")
+if "openai_api_key" not in st.secrets:
+    st.error("Add `openai_api_key` to `.streamlit/secrets.toml`.")
     st.stop()
 
 llm = init_chat_model(
-    "claude-haiku-4-5-20251001",
-    model_provider="anthropic",
-    api_key=st.secrets["anthropic_api_key"],
+    "gpt-4o-mini",
+    model_provider="openai",
+    api_key=st.secrets["openai_api_key"],
 )
 
 if "last_recommendation" not in st.session_state:
@@ -76,7 +76,7 @@ st.caption(
 )
 
 if st.button("Get movie recommendations"):
-    with st.spinner("Asking Claude…"):
+    with st.spinner("Asking OpenAI…"):
         st.session_state.last_recommendation = chain.invoke(
             {"genre": genre, "mood": mood, "persona": persona}
         )
