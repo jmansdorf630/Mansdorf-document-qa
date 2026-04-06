@@ -1,3 +1,4 @@
+# base64 is in the Python standard library (Lab 8) — no pip install needed
 streamlit
 openai
 pypdf
@@ -7,3 +8,4 @@ chromadb
 langchain
 langchain-anthropic
 langchain-openai
+
