@@ -1,4 +1,6 @@
-# base64 is in the Python standard library (Lab 8) — no pip install needed
+# IST 488 labs — install with: pip install -r requirements.txt
+# (base64, json, os, zipfile, etc. are Python standard library)
+
 streamlit
 openai
 pypdf
@@ -6,9 +8,4 @@ requests
 tiktoken
 chromadb
 langchain
-langchain-anthropic
 langchain-openai
-json 
-re
-os
-
