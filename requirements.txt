@@ -8,4 +8,7 @@ chromadb
 langchain
 langchain-anthropic
 langchain-openai
+json 
+re
+os
 
